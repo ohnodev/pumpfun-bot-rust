@@ -107,26 +107,26 @@ cargo build --release
 
 ## Usage
 
-Run the bot with an operation and token address:
+Run the bot with an operation, token address, creator address, creator vault address, and amount:
 ```bash
 # Buy tokens (amount in lamports)
-cargo run --bin pumpfun-bot buy <token_address> <amount_in_lamports> [--priority-fee <fee>]
+cargo run --bin pumpfun-bot buy <token_address> <creator_address> <creator_vault_address> <amount_in_lamports> [--priority-fee <fee>]
 
 # Sell tokens (amount can be raw or percentage)
-cargo run --bin pumpfun-bot sell <token_address> <amount> [--priority-fee <fee>]
+cargo run --bin pumpfun-bot sell <token_address> <creator_address> <creator_vault_address> <amount> [--priority-fee <fee>]
 
 # Examples
 # Buy tokens with 0.01 SOL
-cargo run --bin pumpfun-bot buy E5UbfmHh8sMVKBc1kSAHXQeFDyVJEZw7Tyd3o8FCpump 10000000
+cargo run --bin pumpfun-bot buy E5UbfmHh8sMVKBc1kSAHXQeFDyVJEZw7Tyd3o8FCpump t9QUGC7BnUKbD2SwqkAuk4qL76QoySyYwR6bPzFrPFZ 73Lrc9pHLuN59pBsBGL2oScGM2SHkbTZwZqTdVLPHqdf 10000000
 
 # Sell 50% of tokens
-cargo run --bin pumpfun-bot sell 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU 50%
+cargo run --bin pumpfun-bot sell 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU t9QUGC7BnUKbD2SwqkAuk4qL76QoySyYwR6bPzFrPFZ 73Lrc9pHLuN59pBsBGL2oScGM2SHkbTZwZqTdVLPHqdf 50%
 
 # Sell specific amount of tokens
-cargo run --bin pumpfun-bot sell 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU 1000
+cargo run --bin pumpfun-bot sell 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU t9QUGC7BnUKbD2SwqkAuk4qL76QoySyYwR6bPzFrPFZ 73Lrc9pHLuN59pBsBGL2oScGM2SHkbTZwZqTdVLPHqdf 1000
 
 # Buy with custom priority fee
-cargo run --bin pumpfun-bot buy 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU 10000000 --priority-fee 5
+cargo run --bin pumpfun-bot buy 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU t9QUGC7BnUKbD2SwqkAuk4qL76QoySyYwR6bPzFrPFZ 73Lrc9pHLuN59pBsBGL2oScGM2SHkbTZwZqTdVLPHqdf 10000000 --priority-fee 5
 ```
 
 ## Transaction Structure
@@ -278,3 +278,55 @@ By using this software, you acknowledge that you understand these risks and agre
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
+
+## Buy/Sell Process Flow
+
+The bot follows this process when buying or selling tokens:
+
+1. **Parameter Validation**
+   - Takes the token address, creator address, and creator vault address as inputs
+   - Validates all parameters before proceeding
+   - Creator vault is used directly as provided (no automatic derivation)
+
+2. **Transaction Construction**
+   - Builds the transaction with the appropriate instructions
+   - Includes the provided creator vault in the transaction
+   - Signs and sends the transaction to the network
+
+This approach allows for flexibility, as the creator vault address may be derived differently for different tokens or protocol versions.
+
+## Finding Creator Vault Addresses
+
+To find the creator vault address for a token:
+
+1. **Analyze a Transaction on Solscan:**
+   - Find a transaction for buying/selling the token on Solscan
+   - Look at the "Input Accounts" section under the Pump.fun instruction
+   - Find the account labeled "#10 - Creator Vault" - this is the address you need
+   - Example: `73Lrc9pHLuN59pBsBGL2oScGM2SHkbTZwZqTdVLPHqdf` for token creator `t9QUGC7BnUKbD2SwqkAuk4qL76QoySyYwR6bPzFrPFZ`
+
+2. **Community Resources:**
+   - Check community-maintained lists of token information
+   - Some explorers may provide this data in token details
+   
+3. **A Note on Derivation:**
+   - Creator vaults cannot reliably be derived programmatically
+   - The protocol's derivation method is not publicly documented
+   - Always use the actual vault address from transaction history
+
+## TODO: Future Improvements
+
+- **Creator Vault Derivation:**
+  - Find a way to derive the creator vault address directly from the creator address
+  - If derivation can be done locally, speed impact would be negligible
+  - If derivation requires RPC calls, this could be costly performance-wise
+  - Creator addresses themselves cannot be derived and must be provided
+  - Automatic derivation would simplify the command by removing one parameter
+
+- **Dynamic Fee Estimation:**
+  - Implement automatic priority fee calculation based on network congestion
+  - Optimize fee settings for different transaction types
+
+- **Transaction Simulation:**
+  - Add a dry-run option to simulate transactions without submitting them
+  - Show expected tokens received/SOL returned before execution

@@ -6,6 +6,7 @@ use {
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signer::Signer,
+        system_program,
     },
     spl_associated_token_account::instruction::create_associated_token_account_idempotent,
     std::str::FromStr,
@@ -18,7 +19,8 @@ use {
             wallet::{load_wallet, print_wallet_info},
         },
         utils::{
-            config::{token_program_id, find_bonding_curve_pda, find_associated_bonding_curve_pda},
+            config::{token_program_id, find_bonding_curve_pda, find_associated_bonding_curve_pda, 
+                     global_pda, fee_account, event_authority, pump_program_id},
             utils::get_token_account,
         },
     },
@@ -33,18 +35,18 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Buy { token_address, amount, priority_fee } => {
-            execute_buy(token_address, amount, priority_fee).await?
+        Commands::Buy { token_address, creator_address, creator_vault_address, amount, priority_fee } => {
+            execute_buy(token_address, creator_address, creator_vault_address, amount, priority_fee).await?
         },
-        Commands::Sell { token_address, amount, priority_fee } => {
-            execute_sell(token_address, amount, priority_fee).await?
+        Commands::Sell { token_address, creator_address, creator_vault_address, amount, priority_fee } => {
+            execute_sell(token_address, creator_address, creator_vault_address, amount, priority_fee).await?
         },
     }
 
     Ok(())
 }
 
-async fn execute_buy(token_mint: String, amount_in_lamports: u64, priority_fee: Option<u64>) -> Result<()> {
+async fn execute_buy(token_mint: String, creator_address: String, creator_vault_address: String, amount_in_lamports: u64, priority_fee: Option<u64>) -> Result<()> {
     let start_time = Instant::now();
     dotenv::dotenv().ok();
 
@@ -59,6 +61,14 @@ async fn execute_buy(token_mint: String, amount_in_lamports: u64, priority_fee: 
     // Parse token mint address
     let token_mint = Pubkey::from_str(&token_mint)?;
     println!("\n🟢 Buying token: {}", token_mint);
+    
+    // Parse creator address
+    let token_creator = Pubkey::from_str(&creator_address)?;
+    println!("👤 Token creator: {}", token_creator);
+    
+    // Parse creator vault address
+    let creator_vault = Pubkey::from_str(&creator_vault_address)?;
+    println!("💰 Creator vault: {}", creator_vault);
 
     // Get or create associated token account
     let associated_token_account = get_token_account(&keypair.pubkey(), &token_mint);
@@ -106,6 +116,25 @@ async fn execute_buy(token_mint: String, amount_in_lamports: u64, priority_fee: 
                 &token_program_id(),
             ),
         );
+        
+        // Use the provided creator vault instead of deriving it
+        // No longer using: let creator_vault = find_creator_vault(&token_creator);
+        
+        // Log all account addresses for verification
+        println!("\n📋 Instruction accounts for verification:");
+        println!("#1 - Global PDA: {}", global_pda());
+        println!("#2 - Fee account: {}", fee_account());
+        println!("#3 - Token mint: {}", token_mint);
+        println!("#4 - Bonding curve: {}", bonding_curve);
+        println!("#5 - Associated bonding curve: {}", associated_bonding_curve);
+        println!("#6 - User token account: {}", associated_token_account);
+        println!("#7 - User (signer): {}", keypair.pubkey());
+        println!("#8 - System program: {}", system_program::id());
+        println!("#9 - Token program: {}", token_program_id());
+        println!("#10 - Creator vault: {}", creator_vault);
+        println!("#11 - Event authority: {}", event_authority());
+        println!("#12 - Program ID: {}", pump_program_id());
+        
         // Add buy instruction
         instructions.push(create_buy_instruction(
             &keypair.pubkey(),
@@ -113,6 +142,7 @@ async fn execute_buy(token_mint: String, amount_in_lamports: u64, priority_fee: 
             &associated_token_account,
             &bonding_curve,
             &associated_bonding_curve,
+            &creator_vault,
             tokens_to_get,
             amount_in_lamports,
         )?);
@@ -136,7 +166,7 @@ async fn execute_buy(token_mint: String, amount_in_lamports: u64, priority_fee: 
     }
 }
 
-async fn execute_sell(token_mint: String, amount_str: String, priority_fee: Option<u64>) -> Result<()> {
+async fn execute_sell(token_mint: String, creator_address: String, creator_vault_address: String, amount_str: String, priority_fee: Option<u64>) -> Result<()> {
     let start_time = Instant::now();
     dotenv::dotenv().ok();
 
@@ -151,6 +181,14 @@ async fn execute_sell(token_mint: String, amount_str: String, priority_fee: Opti
     // Parse token mint address
     let token_mint = Pubkey::from_str(&token_mint)?;
     println!("\n🔴 Selling token: {}", token_mint);
+    
+    // Parse creator address
+    let token_creator = Pubkey::from_str(&creator_address)?;
+    println!("👤 Token creator: {}", token_creator);
+    
+    // Parse creator vault address
+    let creator_vault = Pubkey::from_str(&creator_vault_address)?;
+    println!("💰 Creator vault: {}", creator_vault);
 
     // Get token account
     let token_account = get_token_account(&keypair.pubkey(), &token_mint);
@@ -205,6 +243,24 @@ async fn execute_sell(token_mint: String, amount_str: String, priority_fee: Opti
     // Add compute budget instructions
     instructions.extend(create_compute_budget_instructions(34848, priority_fee.unwrap_or(2)));
 
+    // Use the provided creator vault instead of deriving it
+    // No longer using: let creator_vault = find_creator_vault(&token_creator);
+    
+    // Log all account addresses for verification
+    println!("\n📋 Instruction accounts for verification:");
+    println!("#1 - Global PDA: {}", global_pda());
+    println!("#2 - Fee account: {}", fee_account());
+    println!("#3 - Token mint: {}", token_mint);
+    println!("#4 - Bonding curve: {}", bonding_curve);
+    println!("#5 - Associated bonding curve: {}", associated_bonding_curve);
+    println!("#6 - User token account: {}", token_account);
+    println!("#7 - User (signer): {}", keypair.pubkey());
+    println!("#8 - System program: {}", system_program::id());
+    println!("#9 - Token program: {}", token_program_id());
+    println!("#10 - Creator vault: {}", creator_vault);
+    println!("#11 - Event authority: {}", event_authority());
+    println!("#12 - Program ID: {}", pump_program_id());
+
     // Add sell instruction
     instructions.push(create_sell_instruction(
         &keypair.pubkey(),
@@ -212,6 +268,7 @@ async fn execute_sell(token_mint: String, amount_str: String, priority_fee: Opti
         &token_account,
         &bonding_curve,
         &associated_bonding_curve,
+        &creator_vault,
         sell_amount,
         0,
     )?);
